@@ -1,17 +1,14 @@
-if(!require(shinydashboard)) install.packages("shinydashboard", repos = "http://cran.us.r-project.org")
-if(!require(shinythemes)) install.packages("shinythemes", repos = "http://cran.us.r-project.org")
-if(!require(shiny)) install.packages("shiny", repos = "http://cran.us.r-project.org")
-if(!require(leaflet)) install.packages("leaflet", repos = "http://cran.us.r-project.org")
-if(!require(rgdal)) install.packages("rgdal", repos = "http://cran.us.r-project.org")
-if(!require(htmltools)) install.packages("htmltools", repos = "http://cran.us.r-project.org")
-if(!require(stringr)) install.packages("stringr", repos = "http://cran.us.r-project.org")
-if(!require(sf)) install.packages("sf", repos = "http://cran.us.r-project.org")
+library(shinydashboard)
+library(shinythemes)
+library(shiny)
+library(leaflet)
+library(htmltools)
+library(stringr)
+library(sf)
+library(tidyverse)
 
-counties_df <- st_read('shpfiles/counties_df.shp')
-counties_df <- st_transform(counties_df,'+proj=longlat +datum=WGS84')
+counties_df <- st_read('counties_df.shp')
 national <- read_csv('nationalForecast.csv')
-
-pal <- colorNumeric("plasma", domain = counties_df$pred)
 
 ui <- navbarPage(strong("GAM Corn Yield Forecaster"), id="nav",
              tabPanel("County-level", icon = icon("map-marked"), 
@@ -96,14 +93,24 @@ server <- function(input, output, session){
     }
   })
   
+  df_map_vec <- reactive({
+    as_tibble(df_map()) %>% pull(input$mapType)
+  })
+  
+  pal <- reactive({
+    if(input$mapType == 'pred') {
+      colorNumeric("plasma", domain = df_map()$pred) 
+    } else {
+      colorNumeric("plasma", domain = df_map()$Value) 
+    }
+  })
+  
   output$mymap <- renderLeaflet({
-    df_map_tibble <- as_tibble(df_map())
-    df_map_vec<- pull(df_map_tibble, input$mapType)
     leaflet() %>% 
       setView(lng = -94.0589, lat = 39.3601, zoom = 5) %>% 
         addTiles() %>%
           addPolygons(data=df_map(),
-                      fillColor = ~pal(df_map_vec),
+                      fillColor = ~pal()(df_map_vec()),
                       weight = 2,
                       opacity = 1,
                       color = "white",
@@ -120,8 +127,8 @@ server <- function(input, output, session){
                         style = list("font-weight" = "normal", padding = "3px 8px"),
                         textsize = "15px",
                         direction = "auto")
-          ) %>%   addLegend("bottomright", pal = pal, 
-                            values = df_map_vec,
+          ) %>%   addLegend("bottomright", pal = pal(), 
+                            values = df_map_vec(),
                             title='Corn Yield')
   })
   
